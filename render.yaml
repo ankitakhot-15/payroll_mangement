@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: nexuspay-payroll-attendance
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node server.ts
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.18.0
+      - key: PORT
+        value: 10000
+      - key: QR_SIGNING_SECRET
+        generateValue: true
+      - key: BIOMETRIC_WEBHOOK_SECRET
+        generateValue: true
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_FIREBASE_DATABASE_ID
+        sync: false

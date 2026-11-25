@@ -1,0 +1,927 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Shared Primitives ─────────────────────────────────────────────────────
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isCompanyAdminEmail() {
+      return isVerifiedUser() && request.auth.token.email == 'wavecodeankita@gmail.com';
+    }
+
+    function isHrManagerEmail() {
+      return isVerifiedUser() && request.auth.token.email == 'ankitakhot012@gmail.com';
+    }
+
+    function isWorkspaceOperatorEmail() {
+      return isCompanyAdminEmail() || isHrManagerEmail();
+    }
+
+    function isOwnerUid(ownerUid) {
+      return isVerifiedUser() && request.auth.uid == ownerUid;
+    }
+
+    function isCompanyMember(companyId) {
+      return isVerifiedUser()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+
+    function isCompanyStaff(companyId) {
+      return isVerifiedUser()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['company_admin', 'hr_manager'];
+    }
+
+    function isCompanyOperator(companyOwnerUid, companyId) {
+      return isWorkspaceOperatorEmail() || isOwnerUid(companyOwnerUid) || isCompanyStaff(companyId);
+    }
+
+    // ── Entity Validation Blueprints ──────────────────────────────────────────
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'companyId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'companyId', 'employeeId', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['super_admin', 'company_admin', 'hr_manager', 'accountant', 'dept_manager', 'employee']
+        && isValidId(data.companyId)
+        && (!('employeeId' in data) || (data.employeeId is string && data.employeeId.size() <= 64))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCompany(data) {
+      return data.keys().hasAll(['companyId', 'name', 'code', 'plan', 'status', 'companyOwnerUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['companyId', 'name', 'code', 'industry', 'plan', 'status', 'companyOwnerUid', 'attendancePolicy', 'statutoryConfig', 'createdAt', 'updatedAt'])
+        && isValidId(data.companyId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 140
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 24
+        && (!('industry' in data) || (data.industry is string && data.industry.size() <= 80))
+        && data.plan in ['starter', 'growth', 'enterprise']
+        && data.status in ['active', 'suspended']
+        && isValidId(data.companyOwnerUid)
+        && (!('attendancePolicy' in data) || data.attendancePolicy is map)
+        && (!('statutoryConfig' in data) || data.statutoryConfig is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['employeeId', 'companyId', 'companyOwnerUid', 'employeeCode', 'fullName', 'email', 'department', 'designation', 'employmentStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['employeeId', 'companyId', 'companyOwnerUid', 'employeeUid', 'employeeCode', 'fullName', 'email', 'phone', 'department', 'designation', 'shiftId', 'workLocationId', 'employmentType', 'employmentStatus', 'joiningDate', 'panMasked', 'uan', 'esiNumber', 'bankAccountMasked', 'deviceEmployeeCode', 'role', 'createdAt', 'updatedAt'])
+        && isValidId(data.employeeId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && (!('employeeUid' in data) || (data.employeeUid is string && data.employeeUid.size() <= 128))
+        && data.employeeCode is string && data.employeeCode.size() >= 2 && data.employeeCode.size() <= 32
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 24))
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 80
+        && data.designation is string && data.designation.size() >= 1 && data.designation.size() <= 80
+        && (!('shiftId' in data) || (data.shiftId is string && data.shiftId.size() <= 64))
+        && (!('workLocationId' in data) || (data.workLocationId is string && data.workLocationId.size() <= 64))
+        && (!('employmentType' in data) || data.employmentType in ['full_time', 'part_time', 'contract', 'intern'])
+        && data.employmentStatus in ['onboarding', 'active', 'notice_period', 'exited']
+        && (!('joiningDate' in data) || (data.joiningDate is string && data.joiningDate.size() <= 20))
+        && (!('panMasked' in data) || (data.panMasked is string && data.panMasked.size() <= 20))
+        && (!('uan' in data) || (data.uan is string && data.uan.size() <= 24))
+        && (!('esiNumber' in data) || (data.esiNumber is string && data.esiNumber.size() <= 24))
+        && (!('bankAccountMasked' in data) || (data.bankAccountMasked is string && data.bankAccountMasked.size() <= 32))
+        && (!('deviceEmployeeCode' in data) || (data.deviceEmployeeCode is string && data.deviceEmployeeCode.size() <= 32))
+        && (!('role' in data) || data.role in ['company_admin', 'hr_manager', 'accountant', 'dept_manager', 'employee'])
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidShift(data) {
+      return data.keys().hasAll(['shiftId', 'companyId', 'companyOwnerUid', 'name', 'code', 'shiftType', 'startTime', 'endTime', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['shiftId', 'companyId', 'companyOwnerUid', 'name', 'code', 'shiftType', 'startTime', 'endTime', 'breakDurationMinutes', 'gracePeriodMinutes', 'requiredWorkMinutes', 'overtimeEligible', 'isNightShift', 'createdAt', 'updatedAt'])
+        && isValidId(data.shiftId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.code is string && data.code.size() >= 1 && data.code.size() <= 20
+        && data.shiftType in ['general', 'morning', 'evening', 'night', 'flexible', 'rotational']
+        && data.startTime is string && data.startTime.size() >= 4 && data.startTime.size() <= 10
+        && data.endTime is string && data.endTime.size() >= 4 && data.endTime.size() <= 10
+        && (!('breakDurationMinutes' in data) || data.breakDurationMinutes is number)
+        && (!('gracePeriodMinutes' in data) || data.gracePeriodMinutes is number)
+        && (!('requiredWorkMinutes' in data) || data.requiredWorkMinutes is number)
+        && (!('overtimeEligible' in data) || data.overtimeEligible is bool)
+        && (!('isNightShift' in data) || data.isNightShift is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOfficeLocation(data) {
+      return data.keys().hasAll(['locationId', 'companyId', 'companyOwnerUid', 'name', 'latitude', 'longitude', 'radiusMeters', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['locationId', 'companyId', 'companyOwnerUid', 'name', 'address', 'latitude', 'longitude', 'radiusMeters', 'allowWfh', 'createdAt', 'updatedAt'])
+        && isValidId(data.locationId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && (!('address' in data) || (data.address is string && data.address.size() <= 240))
+        && data.latitude is number
+        && data.longitude is number
+        && data.radiusMeters is number && data.radiusMeters >= 10 && data.radiusMeters <= 50000
+        && (!('allowWfh' in data) || data.allowWfh is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendanceDevice(data) {
+      return data.keys().hasAll(['deviceId', 'companyId', 'companyOwnerUid', 'deviceName', 'serialNumber', 'connectionStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['deviceId', 'companyId', 'companyOwnerUid', 'deviceName', 'serialNumber', 'locationName', 'ipAddress', 'protocol', 'connectionStatus', 'lastSyncAt', 'createdAt', 'updatedAt'])
+        && isValidId(data.deviceId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && data.deviceName is string && data.deviceName.size() >= 2 && data.deviceName.size() <= 100
+        && data.serialNumber is string && data.serialNumber.size() >= 2 && data.serialNumber.size() <= 80
+        && (!('locationName' in data) || (data.locationName is string && data.locationName.size() <= 100))
+        && (!('ipAddress' in data) || (data.ipAddress is string && data.ipAddress.size() <= 64))
+        && (!('protocol' in data) || (data.protocol is string && data.protocol.size() <= 64))
+        && data.connectionStatus in ['online', 'offline', 'syncing']
+        && (!('lastSyncAt' in data) || (data.lastSyncAt is string && data.lastSyncAt.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFaceRegistration(data) {
+      return data.keys().hasAll(['registrationId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'status', 'consentAccepted', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['registrationId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeEmail', 'employeeName', 'status', 'consentAccepted', 'sampleCount', 'qualityScore', 'templateDigest', 'referencePhotoDataUrl', 'faceDescriptor', 'reviewNote', 'createdAt', 'updatedAt'])
+        && isValidId(data.registrationId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && (!('employeeEmail' in data) || (data.employeeEmail is string && data.employeeEmail.size() <= 160))
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.status in ['not_registered', 'pending_verification', 'approved', 'rejected', 'expired', 're_registration_required']
+        && data.consentAccepted is bool
+        && (!('sampleCount' in data) || data.sampleCount is number)
+        && (!('qualityScore' in data) || data.qualityScore is number)
+        && (!('templateDigest' in data) || (data.templateDigest is string && data.templateDigest.size() <= 128))
+        && (!('referencePhotoDataUrl' in data) || (data.referencePhotoDataUrl is string && data.referencePhotoDataUrl.size() <= 200000))
+        && (!('faceDescriptor' in data) || (data.faceDescriptor is list && data.faceDescriptor.size() == 128 && data.faceDescriptor[0] is number))
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 280))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['attendanceId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'date', 'attendanceMethod', 'attendanceStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['attendanceId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'department', 'date', 'attendanceMethod', 'attendanceStatus', 'faceVerification', 'livenessStatus', 'checkInFaceVerification', 'checkInLivenessStatus', 'checkInConfidenceScore', 'checkOutFaceVerification', 'checkOutLivenessStatus', 'checkOutConfidenceScore', 'gpsStatus', 'workingMinutes', 'breakMinutes', 'overtimeMinutes', 'lateMinutes', 'approvalStatus', 'checkInAt', 'checkOutAt', 'createdAt', 'updatedAt'])
+        && isValidId(data.attendanceId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && (!('department' in data) || (data.department is string && data.department.size() <= 80))
+        && data.date is string && data.date.size() >= 8 && data.date.size() <= 12
+        && data.attendanceMethod in ['fingerprint', 'selfie_gps', 'face_verification', 'gps', 'qr_code', 'manual_hr']
+        && data.attendanceStatus in ['present', 'on_break', 'checked_out', 'late', 'half_day', 'absent', 'wfh', 'incomplete']
+        && (!('faceVerification' in data) || data.faceVerification in ['verified', 'pending_review', 'failed', 'not_required'])
+        && (!('livenessStatus' in data) || data.livenessStatus in ['passed', 'failed', 'not_required'])
+        && (!('checkInFaceVerification' in data) || data.checkInFaceVerification in ['verified', 'pending_review', 'failed', 'not_required'])
+        && (!('checkInLivenessStatus' in data) || data.checkInLivenessStatus in ['passed', 'failed', 'not_required'])
+        && (!('checkInConfidenceScore' in data) || data.checkInConfidenceScore is number)
+        && (!('checkOutFaceVerification' in data) || data.checkOutFaceVerification in ['verified', 'pending_review', 'failed', 'not_required'])
+        && (!('checkOutLivenessStatus' in data) || data.checkOutLivenessStatus in ['passed', 'failed', 'not_required'])
+        && (!('checkOutConfidenceScore' in data) || data.checkOutConfidenceScore is number)
+        && (!('gpsStatus' in data) || data.gpsStatus in ['verified', 'outside_geofence', 'wfh', 'not_required'])
+        && (!('workingMinutes' in data) || data.workingMinutes is number)
+        && (!('breakMinutes' in data) || data.breakMinutes is number)
+        && (!('overtimeMinutes' in data) || data.overtimeMinutes is number)
+        && (!('lateMinutes' in data) || data.lateMinutes is number)
+        && (!('approvalStatus' in data) || data.approvalStatus in ['auto_approved', 'pending', 'approved', 'rejected'])
+        && (!('checkInAt' in data) || (data.checkInAt is string && data.checkInAt.size() <= 40))
+        && (!('checkOutAt' in data) || (data.checkOutAt is string && data.checkOutAt.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendanceEvent(data) {
+      return data.keys().hasAll(['eventId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'attendanceId', 'eventType', 'createdAt'])
+        && data.keys().hasOnly(['eventId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'attendanceId', 'eventType', 'method', 'verificationNonce', 'confidenceScore', 'distanceMeters', 'createdAt'])
+        && isValidId(data.eventId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && isValidId(data.attendanceId)
+        && data.eventType in ['check_in', 'break_start', 'break_end', 'check_out', 'device_punch', 'qr_punch', 'manual_adjustment']
+        && (!('method' in data) || (data.method is string && data.method.size() <= 32))
+        && (!('verificationNonce' in data) || (data.verificationNonce is string && data.verificationNonce.size() <= 128))
+        && (!('confidenceScore' in data) || data.confidenceScore is number)
+        && (!('distanceMeters' in data) || data.distanceMeters is number)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAttendanceCorrection(data) {
+      return data.keys().hasAll(['correctionId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'date', 'issueType', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['correctionId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'date', 'issueType', 'requestedCheckIn', 'requestedCheckOut', 'reason', 'reviewNote', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.correctionId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.date is string && data.date.size() >= 8 && data.date.size() <= 12
+        && data.issueType in ['missing_check_in', 'missing_check_out', 'wrong_shift', 'missed_break', 'location_review', 'incorrect_status']
+        && (!('requestedCheckIn' in data) || (data.requestedCheckIn is string && data.requestedCheckIn.size() <= 32))
+        && (!('requestedCheckOut' in data) || (data.requestedCheckOut is string && data.requestedCheckOut.size() <= 32))
+        && data.reason is string && data.reason.size() >= 3 && data.reason.size() <= 500
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 280))
+        && data.status in ['pending_manager', 'pending_hr', 'approved', 'rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll(['leaveId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['leaveId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'isHalfDay', 'reason', 'reviewNote', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.leaveId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.leaveType in ['casual', 'sick', 'earned', 'privilege', 'maternity', 'paternity', 'comp_off', 'unpaid']
+        && data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 12
+        && data.endDate is string && data.endDate.size() >= 8 && data.endDate.size() <= 12
+        && data.days is number && data.days > 0 && data.days <= 365
+        && (!('isHalfDay' in data) || data.isHalfDay is bool)
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 500))
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 280))
+        && data.status in ['pending', 'approved', 'rejected', 'cancelled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSalaryStructure(data) {
+      return data.keys().hasAll(['structureId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeName', 'basic', 'grossMonthly', 'annualCtc', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['structureId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'basic', 'hra', 'da', 'conveyance', 'medical', 'specialAllowance', 'grossMonthly', 'annualCtc', 'pfApplicable', 'esiApplicable', 'ptApplicable', 'taxRegime', 'effectiveDate', 'createdAt', 'updatedAt'])
+        && isValidId(data.structureId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && (!('employeeUid' in data) || (data.employeeUid is string && data.employeeUid.size() <= 128))
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.basic is number && data.basic >= 0
+        && (!('hra' in data) || data.hra is number)
+        && (!('da' in data) || data.da is number)
+        && (!('conveyance' in data) || data.conveyance is number)
+        && (!('medical' in data) || data.medical is number)
+        && (!('specialAllowance' in data) || data.specialAllowance is number)
+        && data.grossMonthly is number && data.grossMonthly >= 0
+        && data.annualCtc is number && data.annualCtc >= 0
+        && (!('pfApplicable' in data) || data.pfApplicable is bool)
+        && (!('esiApplicable' in data) || data.esiApplicable is bool)
+        && (!('ptApplicable' in data) || data.ptApplicable is bool)
+        && (!('taxRegime' in data) || data.taxRegime in ['new', 'old'])
+        && (!('effectiveDate' in data) || (data.effectiveDate is string && data.effectiveDate.size() <= 20))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayrollRun(data) {
+      return data.keys().hasAll(['runId', 'companyId', 'companyOwnerUid', 'month', 'status', 'employeeCount', 'totalGross', 'totalNet', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['runId', 'companyId', 'companyOwnerUid', 'month', 'status', 'employeeCount', 'totalGross', 'totalNet', 'totalEmployeePf', 'totalEmployerPf', 'totalEmployeeEsi', 'totalEmployerEsi', 'totalPt', 'totalTds', 'createdAt', 'updatedAt'])
+        && isValidId(data.runId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && data.month is string && data.month.size() >= 6 && data.month.size() <= 10
+        && data.status in ['draft', 'reviewed', 'approved', 'locked']
+        && data.employeeCount is number && data.employeeCount >= 0
+        && data.totalGross is number && data.totalGross >= 0
+        && data.totalNet is number && data.totalNet >= 0
+        && (!('totalEmployeePf' in data) || data.totalEmployeePf is number)
+        && (!('totalEmployerPf' in data) || data.totalEmployerPf is number)
+        && (!('totalEmployeeEsi' in data) || data.totalEmployeeEsi is number)
+        && (!('totalEmployerEsi' in data) || data.totalEmployerEsi is number)
+        && (!('totalPt' in data) || data.totalPt is number)
+        && (!('totalTds' in data) || data.totalTds is number)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayslip(data) {
+      return data.keys().hasAll(['payslipId', 'runId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'month', 'grossEarnings', 'netSalary', 'paymentStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['payslipId', 'runId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'month', 'paidDays', 'unpaidDays', 'workingDays', 'presentDays', 'halfDays', 'paidLeaveDays', 'unpaidLeaveDays', 'absentDays', 'lateMarksCount', 'lateDeductionDays', 'baseMonthlyGross', 'leaveDeductionAmount', 'lateDeductionAmount', 'grossEarnings', 'employeePf', 'employerPf', 'employeeEsi', 'employerEsi', 'professionalTax', 'tds', 'loanEmi', 'overtimePay', 'netSalary', 'paymentStatus', 'createdAt', 'updatedAt'])
+        && isValidId(data.payslipId)
+        && isValidId(data.runId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.month is string && data.month.size() >= 6 && data.month.size() <= 10
+        && (!('paidDays' in data) || data.paidDays is number)
+        && (!('unpaidDays' in data) || data.unpaidDays is number)
+        && (!('workingDays' in data) || data.workingDays is number)
+        && (!('presentDays' in data) || data.presentDays is number)
+        && (!('halfDays' in data) || data.halfDays is number)
+        && (!('paidLeaveDays' in data) || data.paidLeaveDays is number)
+        && (!('unpaidLeaveDays' in data) || data.unpaidLeaveDays is number)
+        && (!('absentDays' in data) || data.absentDays is number)
+        && (!('lateMarksCount' in data) || data.lateMarksCount is number)
+        && (!('lateDeductionDays' in data) || data.lateDeductionDays is number)
+        && (!('baseMonthlyGross' in data) || data.baseMonthlyGross is number)
+        && (!('leaveDeductionAmount' in data) || data.leaveDeductionAmount is number)
+        && (!('lateDeductionAmount' in data) || data.lateDeductionAmount is number)
+        && data.grossEarnings is number && data.grossEarnings >= 0
+        && (!('employeePf' in data) || data.employeePf is number)
+        && (!('employerPf' in data) || data.employerPf is number)
+        && (!('employeeEsi' in data) || data.employeeEsi is number)
+        && (!('employerEsi' in data) || data.employerEsi is number)
+        && (!('professionalTax' in data) || data.professionalTax is number)
+        && (!('tds' in data) || data.tds is number)
+        && (!('loanEmi' in data) || data.loanEmi is number)
+        && (!('overtimePay' in data) || data.overtimePay is number)
+        && data.netSalary is number && data.netSalary >= 0
+        && data.paymentStatus in ['pending', 'paid']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLoan(data) {
+      return data.keys().hasAll(['loanId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'kind', 'principalAmount', 'monthlyEmi', 'outstandingBalance', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['loanId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'kind', 'principalAmount', 'monthlyEmi', 'outstandingBalance', 'reason', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.loanId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.kind in ['loan', 'salary_advance']
+        && data.principalAmount is number && data.principalAmount > 0
+        && data.monthlyEmi is number && data.monthlyEmi > 0
+        && data.outstandingBalance is number && data.outstandingBalance >= 0
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 400))
+        && data.status in ['pending', 'approved', 'rejected', 'settled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReimbursement(data) {
+      return data.keys().hasAll(['reimbursementId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'category', 'amount', 'expenseDate', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['reimbursementId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'category', 'amount', 'expenseDate', 'description', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.reimbursementId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.category in ['travel', 'food', 'fuel', 'medical', 'accommodation', 'internet', 'other']
+        && data.amount is number && data.amount > 0
+        && data.expenseDate is string && data.expenseDate.size() >= 8 && data.expenseDate.size() <= 12
+        && (!('description' in data) || (data.description is string && data.description.size() <= 400))
+        && data.status in ['pending', 'approved', 'rejected', 'paid']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmployeeDocument(data) {
+      return data.keys().hasAll(['docId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'docType', 'fileName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['docId', 'companyId', 'companyOwnerUid', 'employeeId', 'employeeUid', 'employeeName', 'docType', 'fileName', 'mimeType', 'fileSizeBytes', 'fileDataUrl', 'documentNumber', 'reviewNote', 'status', 'expiryDate', 'createdAt', 'updatedAt'])
+        && isValidId(data.docId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.employeeId)
+        && isValidId(data.employeeUid)
+        && data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 120
+        && data.docType in ['aadhaar', 'pan', 'pf_passbook', 'uan', 'esi', 'bank_proof', 'passport', 'driving_license', 'photo_id', 'resume', 'educational', 'offer_letter', 'appointment_letter', 'experience_letter', 'relieving_letter', 'form_16', 'other']
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 160
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 80))
+        && (!('fileSizeBytes' in data) || (data.fileSizeBytes is number && data.fileSizeBytes >= 0 && data.fileSizeBytes <= 1048576))
+        && (!('fileDataUrl' in data) || (data.fileDataUrl is string && data.fileDataUrl.size() <= 750000))
+        && (!('documentNumber' in data) || (data.documentNumber is string && data.documentNumber.size() <= 64))
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 280))
+        && data.status in ['pending_verification', 'approved', 'rejected', 'expired']
+        && (!('expiryDate' in data) || (data.expiryDate is string && data.expiryDate.size() <= 20))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['logId', 'companyId', 'companyOwnerUid', 'actorUid', 'actorName', 'action', 'targetCollection', 'targetId', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['logId', 'companyId', 'companyOwnerUid', 'actorUid', 'actorName', 'action', 'targetCollection', 'targetId', 'summary', 'createdAt'])
+        && isValidId(data.logId)
+        && isValidId(data.companyId)
+        && isValidId(data.companyOwnerUid)
+        && isValidId(data.actorUid)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 120
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 120
+        && data.targetCollection is string && data.targetCollection.size() >= 2 && data.targetCollection.size() <= 64
+        && data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 96
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 320
+        && data.createdAt is timestamp;
+    }
+
+    // ── Collection Rules ──────────────────────────────────────────────────────
+
+    match /test/{docId} {
+      allow get: if isVerifiedUser() && isValidId(docId);
+    }
+
+    match /users/{uid} {
+      allow get: if isVerifiedUser() && isValidId(uid) && (isWorkspaceOperatorEmail() || request.auth.uid == uid);
+      allow list: if isWorkspaceOperatorEmail() || (isVerifiedUser() && resource.data.uid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidUser(incoming())
+        && incoming().uid == uid
+        && request.auth.uid == uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isCompanyAdminEmail() && incoming().role == 'company_admin')
+          || (isHrManagerEmail() && incoming().role == 'hr_manager')
+          || (!isWorkspaceOperatorEmail() && incoming().role == 'employee')
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isCompanyAdminEmail() && request.auth.uid == uid && incoming().role == 'company_admin')
+          || (isHrManagerEmail() && request.auth.uid == uid && incoming().role == 'hr_manager')
+          || isCompanyAdminEmail()
+          || (
+            request.auth.uid == uid
+            && incoming().role == existing().role
+            && incoming().role == 'employee'
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+              || (
+                incoming().diff(existing()).affectedKeys().hasOnly(['companyId', 'employeeId', 'updatedAt'])
+                && 'employeeId' in incoming()
+                && isValidId(incoming().employeeId)
+                && exists(/databases/$(database)/documents/employees/$(incoming().employeeId))
+                && get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.email == request.auth.token.email
+                && get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.companyId == incoming().companyId
+              )
+            )
+          )
+        );
+      allow delete: if isCompanyAdminEmail() && isValidId(uid);
+    }
+
+    match /companies/{companyId} {
+      allow get: if isVerifiedUser() && isValidId(companyId) && (isWorkspaceOperatorEmail() || existing().companyOwnerUid == request.auth.uid || isCompanyMember(companyId));
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isWorkspaceOperatorEmail()
+        && isValidId(companyId)
+        && isValidCompany(incoming())
+        && incoming().companyId == companyId
+        && incoming().companyOwnerUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(companyId)
+        && isValidCompany(incoming())
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'industry', 'plan', 'status', 'attendancePolicy', 'statutoryConfig', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(companyId);
+    }
+
+    match /employees/{employeeId} {
+      allow get: if isVerifiedUser() && isValidId(employeeId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid || existing().email == request.auth.token.email);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid || resource.data.email == request.auth.token.email);
+      allow create: if isVerifiedUser()
+        && isValidId(employeeId)
+        && isValidEmployee(incoming())
+        && incoming().employeeId == employeeId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(employeeId)
+        && isValidEmployee(incoming())
+        && incoming().employeeId == existing().employeeId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isCompanyOperator(existing().companyOwnerUid, existing().companyId) && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'employeeCode', 'fullName', 'email', 'phone', 'department', 'designation', 'shiftId', 'workLocationId', 'employmentType', 'employmentStatus', 'joiningDate', 'panMasked', 'uan', 'esiNumber', 'bankAccountMasked', 'deviceEmployeeCode', 'role', 'updatedAt']))
+          || (existing().employeeUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'updatedAt']))
+          || (existing().email == request.auth.token.email && incoming().employeeUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(employeeId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+    }
+
+    match /shifts/{shiftId} {
+      allow get: if isVerifiedUser() && isValidId(shiftId) && (isWorkspaceOperatorEmail() || existing().companyOwnerUid == request.auth.uid || isCompanyMember(existing().companyId));
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(shiftId)
+        && isValidShift(incoming())
+        && incoming().shiftId == shiftId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(shiftId)
+        && isValidShift(incoming())
+        && incoming().shiftId == existing().shiftId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'shiftType', 'startTime', 'endTime', 'breakDurationMinutes', 'gracePeriodMinutes', 'requiredWorkMinutes', 'overtimeEligible', 'isNightShift', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(shiftId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+    }
+
+    match /officeLocations/{locationId} {
+      allow get: if isVerifiedUser() && isValidId(locationId) && (isWorkspaceOperatorEmail() || existing().companyOwnerUid == request.auth.uid || isCompanyMember(existing().companyId));
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(locationId)
+        && isValidOfficeLocation(incoming())
+        && incoming().locationId == locationId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(locationId)
+        && isValidOfficeLocation(incoming())
+        && incoming().locationId == existing().locationId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'address', 'latitude', 'longitude', 'radiusMeters', 'allowWfh', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(locationId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+    }
+
+    match /attendanceDevices/{deviceId} {
+      allow get: if isVerifiedUser() && isValidId(deviceId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(deviceId)
+        && isValidAttendanceDevice(incoming())
+        && incoming().deviceId == deviceId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(deviceId)
+        && isValidAttendanceDevice(incoming())
+        && incoming().deviceId == existing().deviceId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['deviceName', 'serialNumber', 'locationName', 'ipAddress', 'protocol', 'connectionStatus', 'lastSyncAt', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(deviceId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+    }
+
+    match /faceRegistrations/{regId} {
+      allow get: if isVerifiedUser()
+        && isValidId(regId)
+        && (
+          isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+          || existing().employeeUid == request.auth.uid
+          || ('employeeEmail' in existing() && existing().employeeEmail == request.auth.token.email)
+        );
+      allow list: if isVerifiedUser()
+        && (
+          isWorkspaceOperatorEmail()
+          || resource.data.companyOwnerUid == request.auth.uid
+          || resource.data.employeeUid == request.auth.uid
+          || ('employeeEmail' in resource.data && resource.data.employeeEmail == request.auth.token.email)
+        );
+      allow create: if isVerifiedUser()
+        && isValidId(regId)
+        && isValidFaceRegistration(incoming())
+        && incoming().registrationId == regId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+          || (incoming().employeeUid == request.auth.uid && incoming().status == 'pending_verification')
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(regId)
+        && isValidFaceRegistration(incoming())
+        && incoming().registrationId == existing().registrationId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'employeeEmail', 'employeeName', 'status', 'consentAccepted', 'sampleCount', 'qualityScore', 'templateDigest', 'referencePhotoDataUrl', 'faceDescriptor', 'reviewNote', 'updatedAt'])
+          )
+          || (
+            (existing().employeeUid == request.auth.uid || ('employeeEmail' in existing() && existing().employeeEmail == request.auth.token.email))
+            && incoming().status == 'pending_verification'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'employeeEmail', 'status', 'consentAccepted', 'sampleCount', 'qualityScore', 'templateDigest', 'referencePhotoDataUrl', 'faceDescriptor', 'updatedAt'])
+          )
+          || (
+            'employeeEmail' in existing()
+            && existing().employeeEmail == request.auth.token.email
+            && incoming().employeeUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerifiedUser() && isValidId(regId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+    }
+
+    match /attendance/{attendanceId} {
+      allow get: if isVerifiedUser() && isValidId(attendanceId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(attendanceId)
+        && isValidAttendance(incoming())
+        && incoming().attendanceId == attendanceId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(attendanceId)
+        && isValidAttendance(incoming())
+        && incoming().attendanceId == existing().attendanceId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isCompanyOperator(existing().companyOwnerUid, existing().companyId) && incoming().diff(existing()).affectedKeys().hasOnly(['employeeUid', 'attendanceStatus', 'faceVerification', 'livenessStatus', 'checkInFaceVerification', 'checkInLivenessStatus', 'checkInConfidenceScore', 'checkOutFaceVerification', 'checkOutLivenessStatus', 'checkOutConfidenceScore', 'gpsStatus', 'workingMinutes', 'breakMinutes', 'overtimeMinutes', 'lateMinutes', 'approvalStatus', 'checkInAt', 'checkOutAt', 'updatedAt']))
+          || (existing().employeeUid == request.auth.uid && incoming().employeeUid == existing().employeeUid && incoming().diff(existing()).affectedKeys().hasOnly(['attendanceStatus', 'faceVerification', 'livenessStatus', 'checkInFaceVerification', 'checkInLivenessStatus', 'checkInConfidenceScore', 'checkOutFaceVerification', 'checkOutLivenessStatus', 'checkOutConfidenceScore', 'gpsStatus', 'workingMinutes', 'breakMinutes', 'overtimeMinutes', 'lateMinutes', 'checkInAt', 'checkOutAt', 'updatedAt']))
+        );
+      allow delete: if isCompanyAdminEmail() && isValidId(attendanceId);
+    }
+
+    match /attendanceEvents/{eventId} {
+      allow get: if isVerifiedUser() && isValidId(eventId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(eventId)
+        && isValidAttendanceEvent(incoming())
+        && incoming().eventId == eventId
+        && incoming().createdAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /attendanceCorrections/{correctionId} {
+      allow get: if isVerifiedUser() && isValidId(correctionId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(correctionId)
+        && isValidAttendanceCorrection(incoming())
+        && incoming().correctionId == correctionId
+        && incoming().status == 'pending_manager'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(correctionId)
+        && isValidAttendanceCorrection(incoming())
+        && incoming().correctionId == existing().correctionId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && !(existing().status in ['approved', 'rejected'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewNote', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(correctionId);
+    }
+
+    match /leaveRequests/{leaveId} {
+      allow get: if isVerifiedUser() && isValidId(leaveId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(leaveId)
+        && isValidLeaveRequest(incoming())
+        && incoming().leaveId == leaveId
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(leaveId)
+        && isValidLeaveRequest(incoming())
+        && incoming().leaveId == existing().leaveId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && !(existing().status in ['approved', 'rejected', 'cancelled'])
+        && (
+          (isCompanyOperator(existing().companyOwnerUid, existing().companyId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewNote', 'updatedAt']))
+          || (existing().employeeUid == request.auth.uid && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+      allow delete: if isCompanyAdminEmail() && isValidId(leaveId);
+    }
+
+    match /salaryStructures/{structureId} {
+      allow get: if isVerifiedUser() && isValidId(structureId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(structureId)
+        && isValidSalaryStructure(incoming())
+        && incoming().structureId == structureId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(structureId)
+        && isValidSalaryStructure(incoming())
+        && incoming().structureId == existing().structureId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['basic', 'hra', 'da', 'conveyance', 'medical', 'specialAllowance', 'grossMonthly', 'annualCtc', 'pfApplicable', 'esiApplicable', 'ptApplicable', 'taxRegime', 'effectiveDate', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(structureId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+    }
+
+    match /payrollRuns/{runId} {
+      allow get: if isVerifiedUser() && isValidId(runId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(runId)
+        && isValidPayrollRun(incoming())
+        && incoming().runId == runId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(runId)
+        && isValidPayrollRun(incoming())
+        && incoming().runId == existing().runId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && (existing().status != 'locked' || isCompanyAdminEmail())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'employeeCount', 'totalGross', 'totalNet', 'totalEmployeePf', 'totalEmployerPf', 'totalEmployeeEsi', 'totalEmployerEsi', 'totalPt', 'totalTds', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(runId);
+    }
+
+    match /payslips/{payslipId} {
+      allow get: if isVerifiedUser() && isValidId(payslipId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(payslipId)
+        && isValidPayslip(incoming())
+        && incoming().payslipId == payslipId
+        && isCompanyOperator(incoming().companyOwnerUid, incoming().companyId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(payslipId)
+        && isValidPayslip(incoming())
+        && incoming().payslipId == existing().payslipId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['runId', 'paidDays', 'unpaidDays', 'workingDays', 'presentDays', 'halfDays', 'paidLeaveDays', 'unpaidLeaveDays', 'absentDays', 'lateMarksCount', 'lateDeductionDays', 'baseMonthlyGross', 'leaveDeductionAmount', 'lateDeductionAmount', 'grossEarnings', 'employeePf', 'employerPf', 'employeeEsi', 'employerEsi', 'professionalTax', 'tds', 'loanEmi', 'overtimePay', 'netSalary', 'paymentStatus', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(payslipId);
+    }
+
+    match /loans/{loanId} {
+      allow get: if isVerifiedUser() && isValidId(loanId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(loanId)
+        && isValidLoan(incoming())
+        && incoming().loanId == loanId
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(loanId)
+        && isValidLoan(incoming())
+        && incoming().loanId == existing().loanId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && existing().status != 'settled'
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'outstandingBalance', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(loanId);
+    }
+
+    match /reimbursements/{reimbursementId} {
+      allow get: if isVerifiedUser() && isValidId(reimbursementId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(reimbursementId)
+        && isValidReimbursement(incoming())
+        && incoming().reimbursementId == reimbursementId
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(reimbursementId)
+        && isValidReimbursement(incoming())
+        && incoming().reimbursementId == existing().reimbursementId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isCompanyOperator(existing().companyOwnerUid, existing().companyId)
+        && !(existing().status in ['rejected', 'paid'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isCompanyAdminEmail() && isValidId(reimbursementId);
+    }
+
+    match /employeeDocuments/{docId} {
+      allow get: if isVerifiedUser() && isValidId(docId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || existing().employeeUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid || resource.data.employeeUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(docId)
+        && isValidEmployeeDocument(incoming())
+        && incoming().docId == docId
+        && incoming().status == 'pending_verification'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isCompanyOperator(incoming().companyOwnerUid, incoming().companyId) || incoming().employeeUid == request.auth.uid);
+      allow update: if isVerifiedUser()
+        && isValidId(docId)
+        && isValidEmployeeDocument(incoming())
+        && incoming().docId == existing().docId
+        && incoming().companyId == existing().companyId
+        && incoming().companyOwnerUid == existing().companyOwnerUid
+        && incoming().employeeUid == existing().employeeUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isCompanyOperator(existing().companyOwnerUid, existing().companyId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'expiryDate', 'documentNumber', 'reviewNote', 'fileName', 'mimeType', 'fileSizeBytes', 'fileDataUrl', 'updatedAt']))
+          || (existing().employeeUid == request.auth.uid && existing().status != 'approved' && incoming().status == 'pending_verification' && incoming().diff(existing()).affectedKeys().hasOnly(['fileName', 'mimeType', 'fileSizeBytes', 'fileDataUrl', 'documentNumber', 'expiryDate', 'reviewNote', 'status', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(docId) && (isCompanyOperator(existing().companyOwnerUid, existing().companyId) || (existing().employeeUid == request.auth.uid && existing().status != 'approved'));
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && isCompanyOperator(existing().companyOwnerUid, existing().companyId);
+      allow list: if isVerifiedUser() && (isWorkspaceOperatorEmail() || resource.data.companyOwnerUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidAuditLog(incoming())
+        && incoming().logId == logId
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "NexusPay HR & Biometric Attendance",
+  "description": "Enterprise Payroll, Statutory Compliance (EPF, ESI, PT, TDS), and Biometric Attendance Management System with Selfie Liveness, GPS Geofencing, QR Attendance, and Shift Engine.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

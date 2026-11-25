@@ -1,0 +1,1281 @@
+# COMPLETE MASTER PROMPT: ENTERPRISE PAYROLL + ADVANCED BIOMETRIC ATTENDANCE MANAGEMENT SYSTEM
+
+## 1. PROJECT OVERVIEW
+
+Build a complete, professional, production-ready Payroll and Human Resource Management System with advanced biometric attendance functionality.
+
+The system must manage:
+
+- Employee Management
+- Employee Authentication
+- Fingerprint Attendance
+- Selfie-Based Attendance
+- Face Recognition
+- Face Liveness Detection
+- GPS-Based Attendance
+- Office Geofencing
+- Automatic Check-In
+- Automatic Check-Out
+- Working Hours Calculation
+- Shift Management
+- Overtime Management
+- Late Arrival Tracking
+- Early Leaving Tracking
+- Leave Management
+- Salary Management
+- PF Management
+- ESI Management
+- Professional Tax
+- TDS Management
+- Salary Deductions
+- Monthly Payroll
+- Payslip Generation
+- Employee Document Management
+- Loan and Advance Management
+- Reimbursement Management
+- Employee Self-Service Portal
+- Reports and Analytics
+
+The application must be suitable for small businesses, medium-sized companies, and large organizations.
+
+## 2. TECHNOLOGY STACK
+
+### Frontend
+- React.js
+- Vite
+- TypeScript
+- Tailwind CSS
+- Material UI or shadcn/ui
+- React Router DOM
+- Redux Toolkit
+- Axios
+- React Hook Form
+- Zod Validation
+- Recharts
+- Lucide React Icons
+
+### Backend
+- Node.js
+- Express.js
+- TypeScript
+- Firebase Admin SDK
+- REST APIs
+- JWT Authentication
+- Role-Based Access Control
+- Zod Validation
+- Multer
+- Node Cron
+
+### Database
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Storage
+- Firebase Cloud Messaging
+
+### File Management
+- Cloudinary for employee profile images and appropriate uploaded documents.
+- Firebase Storage for private attendance selfie images and sensitive documents where appropriate.
+- Secure signed URLs and authenticated file access.
+
+### Attendance Technologies
+- Browser MediaDevices API for camera.
+- Face verification provider or SDK with face matching and liveness detection.
+- Browser Geolocation API.
+- GPS geofencing.
+- Fingerprint device SDK/API integration.
+- QR code attendance.
+- Biometric device event synchronization.
+
+Do not use a basic face-detection library as a substitute for actual identity verification or liveness detection.
+
+## 3. USER ROLES
+
+Create separate dashboards and permissions for:
+
+1. Super Admin
+2. Company Admin
+3. HR Manager
+4. Accountant
+5. Department Manager
+6. Employee
+
+### Super Admin
+- Manage multiple companies.
+- Create companies.
+- Manage company subscriptions.
+- Manage all administrators.
+- View company-level analytics.
+- Configure system settings.
+
+### Admin
+- Manage employees.
+- Manage attendance.
+- Manage salary.
+- Configure biometric devices.
+- Configure shifts.
+- Approve payroll.
+- View all company reports.
+
+### HR Manager
+- Manage employee profiles.
+- Manage employee documents.
+- Manage face registration.
+- Monitor attendance.
+- Approve leave.
+- Correct attendance.
+- Manage onboarding and exit.
+
+### Accountant
+- Manage salary structures.
+- Process payroll.
+- Manage PF and ESI.
+- Manage deductions.
+- Manage salary payments.
+- Generate payslips.
+- View financial reports.
+
+### Department Manager
+- View department employees.
+- Monitor attendance.
+- Approve employee leave.
+- Approve attendance corrections.
+- View team reports.
+
+### Employee
+- Login to employee portal.
+- Mark attendance.
+- Check attendance history.
+- Apply for leave.
+- View salary.
+- Download payslips.
+- Upload documents.
+- View PF and ESI information.
+- Submit reimbursement requests.
+
+Enforce permissions on the backend for every operation.
+
+---
+
+# 4. ADVANCED ATTENDANCE MANAGEMENT MODULE
+
+Create a separate Attendance Management section in the Admin Dashboard.
+
+Attendance methods:
+
+1. Fingerprint Biometric Attendance
+2. Selfie Attendance
+3. Face Verification Attendance
+4. GPS Attendance
+5. QR Code Attendance
+6. Manual HR Attendance
+
+Allow administrators to enable or disable each attendance method.
+
+## 4.1 Employee Face Registration
+
+Create an employee face registration workflow.
+
+Employee registration:
+
+1. Employee logs into the portal.
+2. Opens Face Registration.
+3. System requests camera permission.
+4. Show live camera preview.
+5. Employee captures multiple face samples.
+6. Check image quality and lighting.
+7. Send samples securely to the face verification provider.
+8. Generate an encrypted or provider-managed face template.
+9. Link the template to the employee ID.
+10. Submit registration for HR approval.
+11. HR reviews and approves registration.
+12. Display registration status.
+
+Face registration statuses:
+- Not Registered
+- Pending Verification
+- Approved
+- Rejected
+- Expired
+- Re-registration Required
+
+Requirements:
+- Support face re-registration.
+- Prevent unauthorized changes to registered identity.
+- Provide a manual verification alternative.
+- Record consent and registration audit history.
+- Never expose biometric templates to frontend users.
+- Do not store biometric templates in ordinary public image storage.
+
+## 4.2 Selfie-Based Check-In
+
+Create a professional mobile-responsive attendance screen.
+
+Employee workflow:
+
+1. Employee logs in.
+2. Opens My Attendance.
+3. Clicks Check In.
+4. Request camera permission.
+5. Open live camera.
+6. Capture a fresh selfie.
+7. Perform liveness verification.
+8. Match face with registered employee identity.
+9. Capture GPS location if enabled.
+10. Verify office geofence if required.
+11. Validate assigned employee shift.
+12. Submit attendance request to backend.
+13. Backend verifies the authentication token.
+14. Backend validates verification results.
+15. Backend generates the official timestamp.
+16. Save attendance record in Firestore.
+17. Display successful check-in confirmation.
+
+Display:
+- Employee Name
+- Employee ID
+- Current Date
+- Current Time
+- Verification Status
+- GPS Status
+- Office Location
+- Attendance Status
+- Check-In Time
+
+## 4.3 Selfie-Based Check-Out
+
+Implement the same verification process for employee check-out.
+
+Workflow:
+1. Employee opens attendance dashboard.
+2. Clicks Check Out.
+3. Camera opens.
+4. Capture a fresh selfie.
+5. Perform liveness detection.
+6. Verify registered employee identity.
+7. Capture GPS if required.
+8. Verify attendance session.
+9. Submit request.
+10. Backend generates server timestamp.
+11. Save check-out record.
+12. Calculate total working time.
+13. Update attendance status.
+
+Prevent:
+- Check-out without check-in.
+- Duplicate check-outs.
+- Duplicate check-ins.
+- Replayed selfies.
+- Reused attendance verification sessions.
+- Client-side timestamp manipulation.
+- Attendance from unauthorized accounts.
+
+Support multiple work sessions and breaks through explicit attendance events rather than overwriting timestamps.
+
+## 4.4 Face Verification and Liveness Detection
+
+Integrate a dedicated biometric verification service.
+
+Requirements:
+- One-to-one face matching.
+- Registered employee comparison.
+- Live face capture.
+- Liveness verification.
+- Anti-photo spoofing.
+- Anti-video replay.
+- Face quality validation.
+- Verification confidence score.
+- Verification failure tracking.
+
+Do not automatically approve attendance based only on face detection.
+
+Configure:
+- Verification confidence threshold.
+- Maximum retry attempts.
+- Verification timeout.
+- Manual review threshold.
+- Liveness verification requirement.
+
+If face verification fails:
+- Display clear error message.
+- Allow limited retries.
+- Record failed attempt.
+- Offer authorized manual verification.
+- Do not automatically mark attendance as present.
+
+## 4.5 GPS-Based Attendance
+
+Implement location-based attendance.
+
+Admin can configure:
+- Company office locations.
+- Office name.
+- Latitude.
+- Longitude.
+- Permitted attendance radius.
+- Multiple office branches.
+- Work-from-home locations.
+- Field-work attendance policy.
+
+Employee attendance:
+- Request location permission.
+- Capture coordinates.
+- Calculate distance from authorized location.
+- Check geofence.
+- Save verification result.
+- Record location accuracy.
+- Reject or flag attendance outside the permitted area according to company policy.
+
+Do not silently track employees in the background. Capture location only for authorized attendance events.
+
+## 4.6 Fingerprint Biometric Device Integration
+
+Create a dedicated Biometric Device Management module.
+
+Support compatible fingerprint devices through their official SDK, API, local agent, or supported attendance export format.
+
+Features:
+- Add Biometric Device.
+- Device Name.
+- Device ID.
+- Serial Number.
+- Device Location.
+- Device IP Address.
+- Connection Status.
+- Last Synchronization.
+- Employee Device ID Mapping.
+- Attendance Event Import.
+- Automatic Synchronization.
+- Failed Event Tracking.
+- Duplicate Event Detection.
+- Manual Synchronization.
+- Device Activity Logs.
+
+Attendance device workflow:
+
+1. Employee scans fingerprint.
+2. Biometric device verifies fingerprint.
+3. Device produces attendance event.
+4. Integration service retrieves event.
+5. Map device employee ID to company employee ID.
+6. Validate event.
+7. Identify check-in or check-out.
+8. Store event in Firestore.
+9. Update employee attendance.
+10. Calculate working hours.
+
+Never assume all biometric machines use the same protocol.
+
+Do not store raw fingerprint images or templates in the payroll application unless there is a specifically approved, secure and legally compliant biometric architecture.
+
+## 4.7 QR Code Attendance
+
+Create QR code attendance as an optional alternative.
+
+Features:
+- Generate dynamic QR code.
+- QR expiration.
+- Employee authentication.
+- QR validation.
+- Office location verification.
+- Check-in.
+- Check-out.
+- Duplicate prevention.
+
+QR codes must expire and be cryptographically protected against reuse.
+
+---
+
+# 5. EMPLOYEE ATTENDANCE DASHBOARD
+
+Create an attractive employee dashboard.
+
+Display:
+
+- Today's Attendance Status
+- Check-In Time
+- Check-Out Time
+- Working Duration
+- Break Duration
+- Overtime
+- Late Minutes
+- Attendance Verification Status
+- GPS Verification Status
+- Monthly Present Days
+- Monthly Absent Days
+- Leave Days
+- Attendance Percentage
+
+Buttons:
+- Check In
+- Check Out
+- Start Break
+- End Break
+- View Attendance History
+- Request Correction
+
+Before attendance capture, show camera preview and location permission status.
+
+Design a clear, mobile-friendly interface with large attendance action buttons.
+
+## Attendance UI Example
+
+Header:
+My Attendance
+
+Status:
+Not Checked In / Present / On Break / Checked Out
+
+Show:
+- Current Date
+- Current Time
+- Employee Name
+- Employee ID
+- Today's Shift
+
+Attendance Actions:
+- Check In
+- Start Break
+- End Break
+- Check Out
+
+Show the captured selfie preview and verification status after every successful event.
+
+---
+
+# 6. ADMIN ATTENDANCE MONITORING
+
+Create an advanced attendance monitoring dashboard.
+
+Summary cards:
+- Total Employees
+- Present Today
+- Absent Today
+- Late Employees
+- On Leave
+- Working From Home
+- Incomplete Attendance
+- Pending Corrections
+
+Employee attendance table:
+
+Columns:
+- Employee ID
+- Employee Name
+- Department
+- Designation
+- Attendance Date
+- Check-In Time
+- Check-In Selfie
+- Check-Out Time
+- Check-Out Selfie
+- Face Verification
+- GPS Verification
+- Attendance Method
+- Working Hours
+- Late Minutes
+- Overtime
+- Attendance Status
+
+Filters:
+- Date
+- Month
+- Employee
+- Department
+- Designation
+- Attendance Method
+- Attendance Status
+- Verification Status
+- Office Branch
+
+Actions:
+- View Details
+- View Selfie
+- View Location
+- Approve
+- Reject
+- Correct Attendance
+- Export Excel
+- Export PDF
+
+Protect selfie and location access with role-based authorization.
+
+---
+
+# 7. SHIFT MANAGEMENT
+
+Create shift configuration.
+
+Fields:
+- Shift Name
+- Shift Code
+- Start Time
+- End Time
+- Break Duration
+- Grace Period
+- Working Days
+- Weekly Off
+- Overtime Eligibility
+- Late Arrival Policy
+- Early Checkout Policy
+- Night Shift Setting
+
+Support:
+- General Shift
+- Morning Shift
+- Evening Shift
+- Night Shift
+- Flexible Shift
+- Rotational Shift
+- Custom Shift
+
+Assign shifts to:
+- Individual Employees
+- Departments
+- Employee Groups
+
+Support overnight shifts and correct payroll date attribution.
+
+---
+
+# 8. AUTOMATIC WORKING HOURS CALCULATION
+
+Calculate working hours using verified attendance events.
+
+Formula:
+
+Total Working Minutes =
+Sum of Valid Work Sessions - Unpaid Break Minutes
+
+Calculate:
+- Gross Working Time
+- Net Working Time
+- Break Time
+- Late Minutes
+- Early Leaving Minutes
+- Overtime Minutes
+
+Support configurable:
+- Daily Required Hours
+- Weekly Required Hours
+- Monthly Required Hours
+- Grace Period
+- Break Policy
+- Overtime Eligibility
+
+Do not calculate overtime twice or include unpaid breaks in working hours.
+
+---
+
+# 9. ATTENDANCE CORRECTION MANAGEMENT
+
+Employees can request:
+- Missing Check-In
+- Missing Check-Out
+- Incorrect Attendance
+- Wrong Shift
+- Missed Break
+- Location Verification Review
+
+Correction workflow:
+
+Employee Request → Department Manager Approval → HR Approval → Attendance Update.
+
+Maintain:
+- Original Record
+- Requested Change
+- Reason
+- Supporting Evidence
+- Approved By
+- Approval Date
+- Updated Record
+- Audit History
+
+Never overwrite the original attendance event without maintaining its history.
+
+---
+
+# 10. LEAVE MANAGEMENT
+
+Implement:
+- Casual Leave
+- Sick Leave
+- Earned Leave
+- Privilege Leave
+- Maternity Leave
+- Paternity Leave
+- Compensatory Off
+- Unpaid Leave
+
+Features:
+- Apply Leave
+- Leave Balance
+- Leave Calendar
+- Leave Approval
+- Leave Rejection
+- Leave Cancellation
+- Leave Carry Forward
+- Leave Encashment
+- Half-Day Leave
+- Supporting Documents
+- Leave Reports
+
+Approved leave must automatically synchronize with attendance and payroll.
+
+---
+
+# 11. EMPLOYEE MANAGEMENT
+
+Create complete employee CRUD.
+
+Fields:
+- Employee ID
+- Employee Name
+- Profile Photo
+- Email
+- Phone
+- Date of Birth
+- Gender
+- Address
+- Emergency Contact
+- Department
+- Designation
+- Joining Date
+- Reporting Manager
+- Work Location
+- Shift
+- Employment Type
+- Bank Details
+- PAN
+- Aadhaar
+- UAN
+- ESI Number
+- Employment Status
+
+Features:
+- Add Employee
+- Edit Employee
+- View Employee
+- Employee Profile
+- Employee History
+- Employee Onboarding
+- Employee Exit
+- Bulk Excel Import
+- Bulk Export
+
+---
+
+# 12. SALARY STRUCTURE MANAGEMENT
+
+Earnings:
+- Basic Salary
+- HRA
+- DA
+- Conveyance
+- Medical Allowance
+- Special Allowance
+- Travel Allowance
+- Food Allowance
+- Incentives
+- Bonus
+- Overtime
+- Arrears
+
+Deductions:
+- Employee PF
+- Employee ESI
+- Professional Tax
+- TDS
+- Loan EMI
+- Advance Salary
+- LWP
+- Other Authorized Deductions
+
+Features:
+- Salary Templates
+- Employee Salary Assignment
+- CTC Calculation
+- Gross Salary
+- Net Salary
+- Salary Revision
+- Increment History
+- Effective Date
+
+---
+
+# 13. PF MANAGEMENT
+
+Implement Indian EPF management.
+
+Features:
+- UAN Management
+- Employee Eligibility
+- PF Wage Calculation
+- Employee Contribution
+- Employer Contribution
+- EPS
+- EDLI
+- Monthly PF Reports
+- PF Reconciliation
+- Contribution History
+- ECR Data Export
+
+Support configurable rates, wage ceilings, exemptions and effective dates based on applicable EPFO rules.
+
+---
+
+# 14. ESI, PROFESSIONAL TAX AND TDS
+
+ESI:
+- ESI Eligibility
+- ESI Number
+- Employee Contribution
+- Employer Contribution
+- Monthly Reports
+
+Professional Tax:
+- State Configuration
+- Maharashtra PT Rules
+- Salary Slabs
+- Applicable Exemptions
+- Monthly Deductions
+
+TDS:
+- Tax Regime
+- Taxable Income
+- Investment Declarations
+- Tax Calculation
+- Monthly TDS
+- Form 16 Data
+- Tax Reports
+
+Use current applicable statutory rules and maintain historical rule versions.
+
+---
+
+# 15. MONTHLY PAYROLL PROCESSING
+
+Create a complete payroll engine.
+
+Workflow:
+
+1. Select payroll month.
+2. Fetch employees.
+3. Fetch salary structures.
+4. Fetch approved attendance.
+5. Fetch approved leaves.
+6. Calculate paid days.
+7. Calculate unpaid days.
+8. Calculate overtime.
+9. Calculate gross salary.
+10. Calculate employee PF.
+11. Calculate employee ESI.
+12. Calculate PT.
+13. Calculate TDS.
+14. Calculate approved deductions.
+15. Calculate net salary.
+16. Generate payroll preview.
+17. Accountant reviews payroll.
+18. Admin approves payroll.
+19. Lock payroll.
+20. Record salary payments.
+21. Generate PDF payslips.
+
+Formula:
+
+Gross Earnings = Total Earnings
+
+Net Salary = Gross Earnings - Employee Deductions
+
+Track employer PF and ESI contributions separately as employer expenses.
+
+Features:
+- Payroll Preview
+- Payroll Approval
+- Payroll Lock
+- Payroll History
+- Payroll Revisions
+- Salary Payment Status
+- Bank Transfer Export
+- Duplicate Payroll Prevention
+
+All financial calculations must happen on the backend.
+
+---
+
+# 16. PAYSLIP GENERATION
+
+Generate downloadable PDF payslips.
+
+Include:
+- Company Information
+- Employee Information
+- Payroll Month
+- Paid Days
+- Unpaid Days
+- Attendance Summary
+- Earnings
+- Deductions
+- Employee PF
+- Employee ESI
+- PT
+- TDS
+- Gross Salary
+- Net Salary
+- Payment Date
+- Payment Status
+
+Employees can download their own previous payslips.
+
+---
+
+# 17. EMPLOYEE DOCUMENT MANAGEMENT
+
+Document types:
+- Aadhaar
+- PAN
+- Resume
+- Educational Certificates
+- Offer Letter
+- Appointment Letter
+- Experience Letter
+- Relieving Letter
+- Bank Proof
+- UAN Information
+- ESI Information
+- Payslips
+- Form 16
+- Other Documents
+
+Features:
+- Upload
+- Preview
+- Download
+- Verify
+- Approve
+- Reject
+- Expiry Tracking
+- Missing Document Alerts
+- Document History
+
+Use private document storage and short-lived authorized access.
+
+---
+
+# 18. LOANS, ADVANCES AND REIMBURSEMENTS
+
+Loan Management:
+- Loan Application
+- Salary Advance
+- Loan Approval
+- EMI
+- Installment History
+- Outstanding Balance
+- Monthly Deduction
+- Settlement
+
+Reimbursement:
+- Travel
+- Food
+- Fuel
+- Medical
+- Accommodation
+- Internet
+- Other Expenses
+
+Include bill uploads, approval and payment tracking.
+
+---
+
+# 19. EMPLOYEE LIFECYCLE MANAGEMENT
+
+Implement:
+- Onboarding
+- Offer Letters
+- Appointment Letters
+- Confirmation
+- Salary Revision
+- Department Transfer
+- Promotion
+- Resignation
+- Notice Period
+- Exit Checklist
+- Full & Final Settlement
+- Relieving Letter
+- Experience Letter
+
+---
+
+# 20. FIRESTORE DATABASE STRUCTURE
+
+Create the following collections:
+
+companies
+users
+employees
+departments
+designations
+salaryStructures
+salaryRevisions
+attendance
+attendanceEvents
+attendanceCorrections
+attendanceDevices
+deviceEmployeeMappings
+faceRegistrations
+officeLocations
+shifts
+leaveTypes
+leaveBalances
+leaveRequests
+holidays
+payrollRuns
+payrollRecords
+salaryPayments
+payslips
+pfRecords
+esiRecords
+deductions
+loans
+reimbursements
+employeeDocuments
+notifications
+auditLogs
+companySettings
+
+### Attendance Document Example
+
+{
+  companyId: "COMP001",
+  employeeId: "EMP001",
+  date: "2026-11-25",
+  attendanceMethod: "selfie_gps",
+  checkIn: {
+    eventId: "EVENT001",
+    timestamp: "SERVER_TIMESTAMP",
+    selfieFileId: "PRIVATE_FILE_ID",
+    faceVerification: "verified",
+    livenessStatus: "passed",
+    gpsStatus: "verified",
+    officeLocationId: "OFFICE001"
+  },
+  checkOut: {
+    eventId: "EVENT002",
+    timestamp: "SERVER_TIMESTAMP",
+    selfieFileId: "PRIVATE_FILE_ID",
+    faceVerification: "verified",
+    livenessStatus: "passed",
+    gpsStatus: "verified"
+  },
+  workingMinutes: 480,
+  breakMinutes: 60,
+  attendanceStatus: "present"
+}
+
+Use server timestamps and append-only attendance event history.
+
+---
+
+# 21. NODE.JS BACKEND API
+
+Create the following API groups.
+
+Authentication:
+POST /api/auth/login
+POST /api/auth/logout
+POST /api/auth/refresh
+
+Employees:
+POST /api/employees
+GET /api/employees
+GET /api/employees/:id
+PUT /api/employees/:id
+DELETE /api/employees/:id
+
+Attendance:
+POST /api/attendance/check-in
+POST /api/attendance/check-out
+POST /api/attendance/start-break
+POST /api/attendance/end-break
+GET /api/attendance/today
+GET /api/attendance/history
+GET /api/attendance/monthly
+GET /api/attendance/admin
+POST /api/attendance/correction
+PUT /api/attendance/correction/:id/approve
+PUT /api/attendance/correction/:id/reject
+
+Face Verification:
+POST /api/biometric/face/register
+POST /api/biometric/face/verify
+POST /api/biometric/face/liveness
+GET /api/biometric/face/status
+DELETE /api/biometric/face/registration
+
+GPS:
+POST /api/attendance/location/verify
+GET /api/office-locations
+POST /api/office-locations
+
+Fingerprint Devices:
+POST /api/biometric/devices
+GET /api/biometric/devices
+PUT /api/biometric/devices/:id
+POST /api/biometric/devices/:id/sync
+POST /api/biometric/devices/events
+GET /api/biometric/devices/:id/logs
+
+Leaves:
+POST /api/leaves/apply
+GET /api/leaves
+PUT /api/leaves/:id/approve
+PUT /api/leaves/:id/reject
+
+Payroll:
+POST /api/payroll/calculate
+POST /api/payroll/approve
+POST /api/payroll/lock
+GET /api/payroll/monthly
+
+Salary:
+POST /api/salary-structures
+GET /api/salary-structures
+PUT /api/salary-structures/:id
+
+PF:
+GET /api/pf
+POST /api/pf/calculate
+
+ESI:
+GET /api/esi
+POST /api/esi/calculate
+
+Documents:
+POST /api/documents/upload
+GET /api/documents/:employeeId
+DELETE /api/documents/:id
+
+Payslips:
+GET /api/payslips/:employeeId
+POST /api/payslips/generate
+
+Reports:
+GET /api/reports/attendance
+GET /api/reports/payroll
+GET /api/reports/pf
+GET /api/reports/esi
+
+Implement request validation, authentication, authorization, pagination, rate limiting, and standardized error responses.
+
+---
+
+# 22. FRONTEND PROJECT STRUCTURE
+
+frontend/
+  src/
+    assets/
+    components/
+    layouts/
+    pages/
+      auth/
+      dashboard/
+      employees/
+      attendance/
+      biometric/
+      face-registration/
+      devices/
+      shifts/
+      leaves/
+      salary/
+      payroll/
+      payslips/
+      pf/
+      esi/
+      deductions/
+      documents/
+      loans/
+      reimbursements/
+      reports/
+      settings/
+      employee-portal/
+    services/
+    store/
+    hooks/
+    routes/
+    utils/
+    validations/
+    types/
+
+Create reusable components:
+- Sidebar
+- Header
+- Dashboard Cards
+- Data Tables
+- Filters
+- Search
+- Pagination
+- Forms
+- Modal
+- Camera Preview
+- Selfie Capture
+- Verification Status
+- Location Status
+- Attendance Timeline
+- Date Picker
+- File Upload
+- Charts
+- Notifications
+
+---
+
+# 23. SECURITY AND PRIVACY REQUIREMENTS
+
+Implement:
+- Firebase Authentication.
+- Backend JWT verification.
+- Role-based authorization.
+- Company-level data isolation.
+- Secure camera capture.
+- Secure biometric verification.
+- Liveness detection.
+- GPS validation.
+- Server-side timestamps.
+- Attendance event deduplication.
+- Anti-replay protection.
+- Secure document storage.
+- Sensitive data masking.
+- Audit logging.
+- Rate limiting.
+- Secure API validation.
+- HTTPS.
+
+Privacy:
+- Obtain informed employee consent before biometric registration.
+- Explain the purpose of biometric and location collection.
+- Provide a non-biometric alternative where required.
+- Restrict access to biometric data and attendance selfies.
+- Define retention and deletion policies.
+- Allow authorized correction and appeal of failed attendance verification.
+- Never track employee GPS continuously in the background.
+- Never expose biometric templates or sensitive documents through public URLs.
+
+---
+
+# 24. DESIGN REQUIREMENTS
+
+Build a premium enterprise SaaS design.
+
+Use:
+- Navy Blue
+- White
+- Indigo
+- Light Gray
+- Subtle Green for successful verification
+- Red for errors
+
+Design:
+- Professional Admin Dashboard
+- Responsive Sidebar
+- Modern Employee Directory
+- Advanced Attendance Calendar
+- Live Attendance Status
+- Selfie Camera Screen
+- Face Verification Screen
+- Biometric Device Dashboard
+- Payroll Dashboard
+- Salary Tables
+- Employee Portal
+
+Support desktop, tablet and mobile.
+
+Every page must have real backend integration.
+
+Every button must work.
+
+Every form must validate.
+
+Every API must return real data.
+
+Do not use dummy data for production features.
+
+---
+
+# 25. TESTING REQUIREMENTS
+
+Test all workflows.
+
+Attendance tests:
+- Successful check-in.
+- Successful check-out.
+- Duplicate check-in.
+- Missing check-in.
+- Face mismatch.
+- Failed liveness.
+- GPS outside geofence.
+- GPS permission denied.
+- Camera permission denied.
+- Offline attendance.
+- Network failure.
+- Night shift attendance.
+- Break calculation.
+- Biometric device duplicate event.
+- Manual correction approval.
+
+Payroll tests:
+- Attendance integration.
+- Approved leave integration.
+- Unpaid leave calculation.
+- PF calculation.
+- ESI calculation.
+- PT calculation.
+- TDS calculation.
+- Overtime.
+- Payroll locking.
+- Duplicate payroll prevention.
+- Payslip generation.
+
+Test role permissions and company-level data isolation.
+
+---
+
+# 26. FINAL DELIVERABLES
+
+Provide:
+
+1. Complete React frontend.
+2. Complete Node.js backend.
+3. Firebase Firestore integration.
+4. Firebase Authentication.
+5. Firebase Storage integration.
+6. Cloudinary integration.
+7. Fingerprint device integration framework.
+8. Selfie attendance.
+9. Face verification.
+10. Liveness detection.
+11. GPS geofencing.
+12. Automatic check-in/check-out.
+13. Attendance monitoring dashboard.
+14. Shift management.
+15. Leave management.
+16. Salary management.
+17. PF and ESI.
+18. Payroll engine.
+19. Payslip generation.
+20. Employee document management.
+21. Employee self-service portal.
+22. Reports and Excel exports.
+23. Firebase security rules.
+24. API documentation.
+25. Environment variables.
+26. Installation instructions.
+27. Deployment documentation.
+28. Automated tests.
+
+Build the application in functional phases.
+
+First complete authentication, employee management and attendance.
+
+Then complete biometric integration, payroll, statutory calculations, documents, reporting and employee portal.
+
+Do not claim that any biometric device, face verification provider, or payment integration works until its actual SDK/API is connected and tested.
+
+The final application must be a fully integrated, secure, responsive and production-ready Payroll and HR Management System.
